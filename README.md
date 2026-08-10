@@ -4,8 +4,10 @@ A deliberately small experiment: expose normalized official Israeli tariff data 
 one x402-paid API endpoint and observe whether independent agents discover and pay for it.
 
 `GET /il/tariff/:code` is protected with x402 v2. `GET /health` remains free. The
-server accepts test USDC on Base Sepolia (`eip155:84532`) at `$0.0025` per successful
-request. No Base mainnet configuration is included.
+server charges `$0.0025` per successful request. `X402_ENVIRONMENT=development`
+selects Base Sepolia (`eip155:84532`); `X402_ENVIRONMENT=production` selects Base
+mainnet (`eip155:8453`). The variable is mandatory, and `NODE_ENV` never selects a
+financial network.
 
 The runtime is intentionally simple: Express loads a generated local JSON snapshot into
 an in-memory `Map`. There is no database, frontend, account system, or background worker.
@@ -21,6 +23,7 @@ Copy `.env.example` to `.env` and set:
 CDP_API_KEY_ID=
 CDP_API_KEY_SECRET=
 CDP_WALLET_SECRET=
+X402_ENVIRONMENT=development
 PORT=8402
 NODE_ENV=development
 ```
@@ -86,6 +89,12 @@ The successful response includes:
 Optional fields are omitted when the official source does not publish a value. The API
 does not invent an effective date or interpret a missing rate as zero or exempt.
 
+Successful settlements emit one safe JSON console event containing the timestamp,
+tariff code, public payer address when returned by the facilitator, process-local
+new/repeat status, network, atomic amount, and public transaction hash. The application
+never logs payment authorization headers or credentials. New/repeat tracking resets
+when the process restarts; no database or external analytics service is used.
+
 Successful blockchain settlement is intentionally not mocked in Vitest. To test a
 real development payment, use an x402 v2 buyer funded with Base Sepolia test USDC
 and request the same local tariff URL.
@@ -134,7 +143,7 @@ purpose, required `code` path parameter, successful JSON response, and limitatio
 Agents can identify it for Israeli import research, tariff verification, procurement,
 and trade-compliance workflows when they already know the tariff code.
 
-The current public testnet deployment is:
+The current public deployment is:
 
 ```text
 https://israel-tariff-x402.onrender.com

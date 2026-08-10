@@ -3,8 +3,31 @@ import { paymentMiddlewareFromHTTPServer } from "@x402/express";
 import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
 import type { RequestHandler } from "express";
 
-export const X402_ENVIRONMENT = "development" as const;
-export const PAYMENT_NETWORK = "eip155:84532" as const;
+export const PAYMENT_NETWORKS = {
+  development: "eip155:84532",
+  production: "eip155:8453",
+} as const;
+
+export type X402Environment = keyof typeof PAYMENT_NETWORKS;
+
+export type X402Configuration = {
+  environment: X402Environment;
+  network: (typeof PAYMENT_NETWORKS)[X402Environment];
+};
+
+export function resolveX402Configuration(value: string | undefined): X402Configuration {
+  if (value !== "development" && value !== "production") {
+    throw new Error(
+      "X402_ENVIRONMENT must be explicitly set to development or production",
+    );
+  }
+
+  return {
+    environment: value,
+    network: PAYMENT_NETWORKS[value],
+  };
+}
+
 export const TARIFF_PRICE = "$0.0025" as const;
 export const TARIFF_DESCRIPTION =
   "Israeli Customs Tariff Lookup. Retrieve fields published in the official Israel Tax Authority open dataset for a known ten-digit Israeli customs tariff code. Use for Israel import research, tariff metadata verification, procurement/import workflows, and trade-compliance research. The caller must already know the code. This endpoint does not classify products, provide legal or customs advice, calculate treaty/agreement rates, or account for quotas, levies, or licensing and approval requirements. Official legislation and Customs determinations prevail.";
@@ -144,16 +167,19 @@ export const TARIFF_DISCOVERY = declareDiscoveryExtension({
   },
 });
 
-export const X402_ROUTES = {
-  "GET /il/tariff/:code": {
-    price: TARIFF_PRICE,
-    description: TARIFF_DESCRIPTION,
-    networks: [PAYMENT_NETWORK],
-    extensions: {
-      ...TARIFF_DISCOVERY,
+export function createX402Routes(network: X402Configuration["network"]) {
+  return {
+    "GET /il/tariff/:code": {
+      price: TARIFF_PRICE,
+      scheme: "exact",
+      description: TARIFF_DESCRIPTION,
+      networks: [network],
+      extensions: {
+        ...TARIFF_DISCOVERY,
+      },
     },
-  },
-} satisfies NonNullable<CdpX402ServerConfig["routes"]>;
+  } satisfies NonNullable<CdpX402ServerConfig["routes"]>;
+}
 
 const REQUIRED_CDP_ENVIRONMENT_VARIABLES = [
   "CDP_API_KEY_ID",
@@ -166,7 +192,9 @@ export type PaymentSetup = {
   payToAddress: string;
 };
 
-export async function createPaymentSetup(): Promise<PaymentSetup> {
+export async function createPaymentSetup(
+  configuration: X402Configuration,
+): Promise<PaymentSetup> {
   const missingVariables = REQUIRED_CDP_ENVIRONMENT_VARIABLES.filter(
     (name) => !process.env[name],
   );
@@ -176,13 +204,48 @@ export async function createPaymentSetup(): Promise<PaymentSetup> {
   }
 
   const x402Server = await createX402Server({
-    environment: X402_ENVIRONMENT,
-    routes: X402_ROUTES,
+    environment: configuration.environment,
+    routes: createX402Routes(configuration.network),
   });
 
   if (!x402Server.payToEvmAddress) {
     throw new Error("CDP did not return an EVM payment destination");
   }
+
+  const observedPayers = new Set<string>();
+  x402Server.resourceServer.onAfterSettle(async ({ requirements, result, transportContext }) => {
+    const httpContext = transportContext as
+      | { request?: { path?: unknown; method?: unknown } }
+      | undefined;
+    const path = httpContext?.request?.path;
+    const code = typeof path === "string" ? /^\/il\/tariff\/(\d{10})$/.exec(path)?.[1] : undefined;
+    const payer = typeof result.payer === "string" ? result.payer : undefined;
+    const payerKey = payer?.toLowerCase();
+    const payerHistory = payerKey
+      ? observedPayers.has(payerKey)
+        ? "repeat"
+        : "new"
+      : "unavailable";
+
+    if (payerKey) {
+      observedPayers.add(payerKey);
+    }
+
+    console.log(
+      JSON.stringify({
+        event: "x402_payment_settled",
+        timestamp: new Date().toISOString(),
+        endpoint: "GET /il/tariff/:code",
+        code: code ?? null,
+        paid: true,
+        payer_address: payer ?? null,
+        payer_history: payerHistory,
+        network: result.network,
+        amount_atomic: requirements.amount,
+        transaction: result.transaction,
+      }),
+    );
+  });
 
   return {
     middleware: paymentMiddlewareFromHTTPServer(x402Server),

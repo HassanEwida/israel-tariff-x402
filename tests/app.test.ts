@@ -8,11 +8,12 @@ import {
 } from "@x402/extensions/bazaar";
 import { app, createApp } from "../src/app.js";
 import {
-  PAYMENT_NETWORK,
+  createX402Routes,
+  PAYMENT_NETWORKS,
+  resolveX402Configuration,
   TARIFF_DESCRIPTION,
   TARIFF_DISCOVERY,
   TARIFF_PRICE,
-  X402_ROUTES,
 } from "../src/payment.js";
 import { createTariffLookup, normalizeTariffCode } from "../src/tariff.js";
 
@@ -105,13 +106,48 @@ describe("payment routing", () => {
     };
   }
 
-  it("configures the paid route for Base Sepolia at the requested price", () => {
-    expect(X402_ROUTES["GET /il/tariff/:code"]).toMatchObject({
+  it("selects Base Sepolia only for explicit development configuration", () => {
+    const configuration = resolveX402Configuration("development");
+    const routes = createX402Routes(configuration.network);
+
+    expect(configuration).toEqual({
+      environment: "development",
+      network: "eip155:84532",
+    });
+    expect(routes["GET /il/tariff/:code"]).toMatchObject({
       price: TARIFF_PRICE,
-      networks: [PAYMENT_NETWORK],
+      scheme: "exact",
+      networks: [PAYMENT_NETWORKS.development],
     });
     expect(TARIFF_PRICE).toBe("$0.0025");
-    expect(PAYMENT_NETWORK).toBe("eip155:84532");
+  });
+
+  it("selects Base mainnet only for explicit production configuration", () => {
+    const configuration = resolveX402Configuration("production");
+    const routes = createX402Routes(configuration.network);
+
+    expect(configuration).toEqual({
+      environment: "production",
+      network: "eip155:8453",
+    });
+    expect(routes["GET /il/tariff/:code"]).toMatchObject({
+      price: "$0.0025",
+      scheme: "exact",
+      networks: [PAYMENT_NETWORKS.production],
+    });
+    expect(Object.keys(routes)).toEqual(["GET /il/tariff/:code"]);
+  });
+
+  it("fails closed when the financial environment is missing or invalid", () => {
+    expect(() => resolveX402Configuration(undefined)).toThrow(
+      "X402_ENVIRONMENT must be explicitly set",
+    );
+    expect(() => resolveX402Configuration("")).toThrow(
+      "X402_ENVIRONMENT must be explicitly set",
+    );
+    expect(() => resolveX402Configuration("staging")).toThrow(
+      "X402_ENVIRONMENT must be explicitly set",
+    );
   });
 
   it("attaches a valid explicit Bazaar declaration", () => {
@@ -126,7 +162,8 @@ describe("payment routing", () => {
     enriched.info.input.method = "GET";
     expect(validateDiscoveryExtension(enriched)).toEqual({ valid: true });
 
-    expect(X402_ROUTES["GET /il/tariff/:code"].extensions.bazaar).toBe(bazaar);
+    const routes = createX402Routes(PAYMENT_NETWORKS.development);
+    expect(routes["GET /il/tariff/:code"].extensions.bazaar).toBe(bazaar);
   });
 
   it("describes path input, actual output fields, and service limitations", () => {
