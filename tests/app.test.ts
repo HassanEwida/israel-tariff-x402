@@ -39,6 +39,10 @@ describe("API", () => {
     expect(response.body).toEqual({ status: "ok" });
   });
 
+  it("trusts the hosting proxy for externally advertised HTTPS URLs", () => {
+    expect(app.get("trust proxy")).toBe(1);
+  });
+
   it("returns a normalized official-source tariff response", async () => {
     const response = await request(app).get("/il/tariff/8517130000");
     expect(response.status).toBe(200);
@@ -116,6 +120,7 @@ describe("payment routing", () => {
     expect(bazaar.info.input.pathParams).toEqual({ code: "8517130000" });
     expect(pathParams?.required).toContain("code");
     expect(pathParams?.additionalProperties).toBe(false);
+    expect(pathParams?.properties?.code?.pattern).toBe("^[0-9]{10}$");
     expect(output?.required).toEqual(["type"]);
     expect(output?.properties?.example).toMatchObject({
       required: ["code", "source", "source_type", "disclaimer"],

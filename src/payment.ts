@@ -22,9 +22,8 @@ export const TARIFF_DISCOVERY = declareDiscoveryExtension({
     properties: {
       code: {
         type: "string",
-        description:
-          "Israeli customs tariff code. Exactly 10 digits after removing spaces, dots, or hyphens.",
-        pattern: "^(?=(?:[^0-9]*[0-9]){10}[^0-9]*$)[0-9 .-]+$",
+        description: "Israeli customs tariff code, exactly 10 digits.",
+        pattern: "^[0-9]{10}$",
         examples: ["8517130000"],
       },
     },

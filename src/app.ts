@@ -40,6 +40,9 @@ const tariffHandler: RequestHandler = (_request, response) => {
 export function createApp(paymentMiddleware?: RequestHandler) {
   const app = express();
 
+  // Render terminates HTTPS at its proxy. Trust the first proxy hop so x402
+  // advertises the original HTTPS resource URL in payment requirements.
+  app.set("trust proxy", 1);
   app.disable("x-powered-by");
 
   app.get("/health", (_request, response) => {
