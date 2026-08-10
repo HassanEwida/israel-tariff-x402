@@ -8,7 +8,9 @@
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run tests"
+    "test": "vitest run tests",
+    "buyer:fund": "tsx scripts/test-x402-buyer.ts --fund-only",
+    "buyer:test": "tsx scripts/test-x402-buyer.ts"
   },
   "engines": {
     "node": ">=22"
@@ -29,6 +31,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^26.2.0",
     "@types/supertest": "^7.2.1",
+    "@x402/fetch": "^2.21.0",
     "supertest": "^7.2.2",
     "tsx": "^4.23.12",
     "typescript": "^5.9.3",
