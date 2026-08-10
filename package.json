@@ -1,0 +1,37 @@
+{
+  "name": "israel-tariff-x402",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Minimal machine-readable Israeli tariff lookup API experiment",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run tests"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "overrides": {
+    "axios": "1.19.0"
+  },
+  "dependencies": {
+    "@coinbase/cdp-sdk": "^1.55.0",
+    "@x402/core": "^2.21.0",
+    "@x402/evm": "^2.21.0",
+    "@x402/express": "^2.21.0",
+    "@x402/extensions": "^2.21.0",
+    "@x402/svm": "^2.21.0",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.2.0",
+    "@types/supertest": "^7.2.1",
+    "supertest": "^7.2.2",
+    "tsx": "^4.23.12",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

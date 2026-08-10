@@ -1,0 +1,18 @@
+[
+  {
+    "code": "8517130000",
+    "description_he": "טלפונים חכמים",
+    "description_en": "Smartphones",
+    "customs_rate": "Exempt",
+    "purchase_tax": "Exempt",
+    "effective_date": "2024-01-01"
+  },
+  {
+    "code": "0901110000",
+    "description_he": "קפה, לא קלוי, לא נטול קפאין",
+    "description_en": "Coffee, not roasted, not decaffeinated",
+    "customs_rate": "See official tariff",
+    "purchase_tax": "Exempt",
+    "effective_date": "2024-01-01"
+  }
+]
