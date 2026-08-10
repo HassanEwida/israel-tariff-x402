@@ -1,0 +1,71 @@
+[
+  {
+    "_id": 1,
+    "CustomsItemFullClassification": "8517130000/8",
+    "HierarchicLocation": "פרט משנה פיצול",
+    "GoodsDescription": "טלפונים חכמים",
+    "CustomsTariff": "פטור",
+    "PurchaseTaxTariff": "פטור",
+    "MeasurementUnitDescription": "כל אחד",
+    "CustomsItemEndDate": null,
+    "CustomsTariffEndDate": "2028-05-31",
+    "PurchaseTaxTariffEndDate": null,
+    "CustomsItemCategoryID": 1
+  },
+  {
+    "_id": 2,
+    "CustomsItemFullClassification": "0901210000",
+    "HierarchicLocation": "סעיף ישראלי א פיצול",
+    "GoodsDescription": "קפה קלוי",
+    "CustomsTariff": "12% ",
+    "PurchaseTaxTariff": null,
+    "MeasurementUnitDescription": "קילוגרם",
+    "CustomsItemEndDate": null,
+    "CustomsTariffEndDate": null,
+    "PurchaseTaxTariffEndDate": null,
+    "CustomsItemCategoryID": 1
+  },
+  {
+    "_id": 3,
+    "CustomsItemFullClassification": "1234567890/1",
+    "HierarchicLocation": "פרט משנה פיצול",
+    "GoodsDescription": "רשומת בדיקה ללא תיאור אנגלי",
+    "CustomsTariff": "7%",
+    "PurchaseTaxTariff": "פטור",
+    "MeasurementUnitDescription": null,
+    "CustomsItemEndDate": null,
+    "CustomsTariffEndDate": null,
+    "PurchaseTaxTariffEndDate": null,
+    "CustomsItemCategoryID": 3
+  },
+  {
+    "_id": 4,
+    "CustomsItemFullClassification": " -0010000000/9",
+    "HierarchicLocation": null,
+    "GoodsDescription": "פרט הנחה מיוחד",
+    "CustomsTariff": "פטור",
+    "PurchaseTaxTariff": "פטור",
+    "CustomsItemCategoryID": 2
+  },
+  {
+    "_id": 5,
+    "CustomsItemFullClassification": "I",
+    "HierarchicLocation": "חלק",
+    "GoodsDescription": "חלק ראשון",
+    "CustomsItemCategoryID": 1
+  },
+  {
+    "_id": 6,
+    "CustomsItemFullClassification": "8517000000",
+    "HierarchicLocation": "פרט",
+    "GoodsDescription": "מכשירי טלפון",
+    "CustomsItemCategoryID": 1
+  },
+  {
+    "_id": 7,
+    "CustomsItemFullClassification": "8517130000/88",
+    "HierarchicLocation": "פרט משנה פיצול",
+    "GoodsDescription": "קוד לא תקין",
+    "CustomsItemCategoryID": 1
+  }
+]

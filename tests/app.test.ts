@@ -17,18 +17,29 @@ import {
 import { createTariffLookup, normalizeTariffCode } from "../src/tariff.js";
 
 describe("tariff code normalization", () => {
-  it("normalizes common separators to digits", () => {
-    expect(normalizeTariffCode(" 8517.13-0000 ")).toBe("8517130000");
+  it("accepts an exact ten-digit public lookup key", () => {
+    expect(normalizeTariffCode(" 8517130000 ")).toBe("8517130000");
   });
 
-  it("rejects letters and incorrect lengths", () => {
+  it("rejects letters, separators, check digits, and incorrect lengths", () => {
     expect(normalizeTariffCode("8517abc0000")).toBeNull();
+    expect(normalizeTariffCode("8517.13-0000")).toBeNull();
+    expect(normalizeTariffCode("8517130000/8")).toBeNull();
     expect(normalizeTariffCode("1234")).toBeNull();
   });
 
-  it("normalizes codes while constructing the in-memory lookup", () => {
-    const lookup = createTariffLookup([{ code: "8517.13.0000" }]);
+  it("constructs the in-memory lookup from normalized entries", () => {
+    const lookup = createTariffLookup([{ code: "8517130000", official_code: "8517130000/8" }]);
     expect(lookup.has("8517130000")).toBe(true);
+  });
+
+  it("rejects duplicate lookup keys in the local snapshot", () => {
+    expect(() =>
+      createTariffLookup([
+        { code: "8517130000", official_code: "8517130000/8" },
+        { code: "8517130000", official_code: "8517130000/9" },
+      ]),
+    ).toThrow("Duplicate tariff code in data file");
   });
 });
 
@@ -48,17 +59,23 @@ describe("API", () => {
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({
       code: "8517130000",
-      description_en: "Smartphones",
+      official_code: "8517130000/8",
+      description_en: "-- Smartphones",
+      customs_rate: "פטור",
+      purchase_tax: "פטור",
       source: "Israel Tax Authority",
-      source_type: "official",
+      source_type: "official_open_data",
+      source_dataset: "ספר סיווג טובין ביבוא",
     });
-    expect(response.body.disclaimer).toContain("Informational lookup only");
+    expect(response.body.dataset_updated_at).toBeTypeOf("string");
+    expect(response.body.retrieved_at).toBeTypeOf("string");
+    expect(response.body.disclaimer).toContain("does not calculate treaty/agreement rates");
+    expect(response.body).not.toHaveProperty("effective_date");
   });
 
-  it("normalizes a formatted route code", async () => {
+  it("rejects a formatted route code", async () => {
     const response = await request(app).get("/il/tariff/8517.13-0000");
-    expect(response.status).toBe(200);
-    expect(response.body.code).toBe("8517130000");
+    expect(response.status).toBe(400);
   });
 
   it("returns 404 for a valid but missing code", async () => {
@@ -123,12 +140,23 @@ describe("payment routing", () => {
     expect(pathParams?.properties?.code?.pattern).toBe("^[0-9]{10}$");
     expect(output?.required).toEqual(["type"]);
     expect(output?.properties?.example).toMatchObject({
-      required: ["code", "source", "source_type", "disclaimer"],
+      required: [
+        "code",
+        "official_code",
+        "dataset_updated_at",
+        "retrieved_at",
+        "source",
+        "source_type",
+        "source_dataset",
+        "source_url",
+        "disclaimer",
+      ],
       additionalProperties: false,
     });
     expect(TARIFF_DESCRIPTION).toContain("Israel import research");
     expect(TARIFF_DESCRIPTION).toContain("does not classify products");
-    expect(TARIFF_DESCRIPTION).toContain("does not classify products or provide legal");
+    expect(TARIFF_DESCRIPTION).toContain("does not classify products, provide legal");
+    expect(JSON.stringify(output)).not.toContain("effective_date");
   });
 
   it("returns 402 for an unpaid existing tariff in payment mode", async () => {

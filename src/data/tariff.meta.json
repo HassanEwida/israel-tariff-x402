@@ -1,0 +1,21 @@
+{
+  "retrieved_at": "2026-08-10T11:14:02.526Z",
+  "dataset_updated_at": "2026-08-10T08:58:44.723712",
+  "source": "Israel Tax Authority",
+  "source_type": "official_open_data",
+  "source_dataset": "ספר סיווג טובין ביבוא",
+  "source_url": "https://data.gov.il/he/datasets/taxes-authority/customsbook",
+  "license": {
+    "id": "other-open",
+    "title": "אחר (פתוח)",
+    "terms_url": "https://data.gov.il/he/terms-of-use"
+  },
+  "resource_ids": {
+    "he": "5536eaa1-2e51-406b-aff6-b9ca02801b7c",
+    "en": "c96d99fe-fd3a-4e86-a767-4119dd8b723e"
+  },
+  "resource_updated_at": {
+    "he": "2026-08-10T08:58:44.723712",
+    "en": "2026-08-10T08:58:14.823172"
+  }
+}

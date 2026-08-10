@@ -9,6 +9,7 @@
     "start": "tsx src/server.ts",
     "build": "tsc -p tsconfig.json",
     "test": "vitest run tests",
+    "update:tariff": "tsx scripts/import-israel-tariff.ts",
     "buyer:fund": "tsx scripts/test-x402-buyer.ts --fund-only",
     "buyer:test": "tsx scripts/test-x402-buyer.ts"
   },

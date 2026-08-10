@@ -1,0 +1,26 @@
+[
+  {
+    "_id": 1,
+    "CustomsItemFullClassification": "8517130000/8",
+    "GoodsDescription": "Smartphones",
+    "CustomsTariff": null,
+    "PurchaseTaxTariff": "Tax Free"
+  },
+  {
+    "_id": 2,
+    "CustomsItemFullClassification": "0901210000",
+    "GoodsDescription": "Roasted coffee",
+    "CustomsTariff": "Tax Free",
+    "PurchaseTaxTariff": "Tax Free"
+  },
+  {
+    "_id": 4,
+    "CustomsItemFullClassification": " -0010000000/9",
+    "GoodsDescription": "Special discount item"
+  },
+  {
+    "_id": 6,
+    "CustomsItemFullClassification": "8517000000",
+    "GoodsDescription": "Telephone sets"
+  }
+]

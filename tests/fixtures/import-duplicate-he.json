@@ -1,0 +1,16 @@
+[
+  {
+    "_id": 1,
+    "CustomsItemFullClassification": "8517130000/8",
+    "HierarchicLocation": "פרט משנה פיצול",
+    "GoodsDescription": "טלפונים חכמים",
+    "CustomsItemCategoryID": 1
+  },
+  {
+    "_id": 2,
+    "CustomsItemFullClassification": "8517130000/9",
+    "HierarchicLocation": "פרט משנה פיצול",
+    "GoodsDescription": "התנגשות",
+    "CustomsItemCategoryID": 1
+  }
+]

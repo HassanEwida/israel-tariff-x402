@@ -1,19 +1,13 @@
 import tariffData from "./data/tariff.json" with { type: "json" };
-import type { TariffEntry, TariffResponse } from "./types.js";
+import tariffMetadata from "./data/tariff.meta.json" with { type: "json" };
+import type { TariffEntry, TariffMetadata, TariffResponse } from "./types.js";
 
 const DISCLAIMER =
-  "Informational lookup only. Official Israeli legislation and Customs determinations prevail.";
+  "Official open-dataset fields only. Not tariff-classification advice; does not calculate treaty/agreement rates or account for quotas, levies, or licensing/approval requirements. Official legislation and Customs determinations prevail.";
 
 export function normalizeTariffCode(value: string): string | null {
   const trimmed = value.trim();
-
-  // Accept digits and common visual separators, but never silently accept letters.
-  if (!trimmed || !/^[\d\s.-]+$/.test(trimmed)) {
-    return null;
-  }
-
-  const normalized = trimmed.replace(/\D/g, "");
-  return normalized.length === 10 ? normalized : null;
+  return /^[0-9]{10}$/.test(trimmed) ? trimmed : null;
 }
 
 export function createTariffLookup(entries: TariffEntry[]): Map<string, TariffEntry> {
@@ -24,6 +18,9 @@ export function createTariffLookup(entries: TariffEntry[]): Map<string, TariffEn
     if (!code) {
       throw new Error(`Invalid tariff code in data file: ${entry.code}`);
     }
+    if (lookup.has(code)) {
+      throw new Error(`Duplicate tariff code in data file: ${code}`);
+    }
     lookup.set(code, { ...entry, code });
   }
 
@@ -31,6 +28,7 @@ export function createTariffLookup(entries: TariffEntry[]): Map<string, TariffEn
 }
 
 const tariffLookup = createTariffLookup(tariffData as TariffEntry[]);
+const metadata = tariffMetadata as TariffMetadata;
 
 export function findTariff(code: string): TariffResponse | undefined {
   const entry = tariffLookup.get(code);
@@ -38,8 +36,12 @@ export function findTariff(code: string): TariffResponse | undefined {
 
   return {
     ...entry,
-    source: "Israel Tax Authority",
-    source_type: "official",
+    dataset_updated_at: metadata.dataset_updated_at,
+    retrieved_at: metadata.retrieved_at,
+    source: metadata.source,
+    source_type: metadata.source_type,
+    source_dataset: metadata.source_dataset,
+    source_url: metadata.source_url,
     disclaimer: DISCLAIMER,
   };
 }
