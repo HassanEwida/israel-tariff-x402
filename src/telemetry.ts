@@ -1,7 +1,10 @@
-import { createHmac, createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHmac, createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import type { Request, RequestHandler, Response } from "express";
 
 export const TELEMETRY_EVENT_LIMIT = 200;
+export const TELEMETRY_AUTH_FAILURE_LIMIT = 10;
+export const TELEMETRY_AUTH_WINDOW_MS = 10 * 60 * 1000;
+export const TELEMETRY_AUTH_MAX_SOURCES = 1_000;
 const USER_AGENT_LIMIT = 160;
 
 export type TelemetryEventName =
@@ -116,6 +119,48 @@ function parseBasicAuthorization(value: string | undefined): { username: string;
   } catch {
     return null;
   }
+}
+
+export function createFailedAuthenticationLimiter(options: {
+  failureLimit?: number;
+  windowMs?: number;
+  maxSources?: number;
+  now?: () => number;
+} = {}) {
+  const failureLimit = Math.max(1, options.failureLimit ?? TELEMETRY_AUTH_FAILURE_LIMIT);
+  const windowMs = Math.max(1, options.windowMs ?? TELEMETRY_AUTH_WINDOW_MS);
+  const maxSources = Math.max(1, options.maxSources ?? TELEMETRY_AUTH_MAX_SOURCES);
+  const sourceHashKey = randomBytes(32);
+  const failures = new Map<string, { count: number; resetAt: number }>();
+
+  const sourceKey = (source: string | undefined) =>
+    createHmac("sha256", sourceHashKey).update(source ?? "source-unavailable").digest("hex");
+
+  const recordFailure = (source: string | undefined) => {
+    const now = (options.now ?? Date.now)();
+    for (const [key, entry] of failures) {
+      if (entry.resetAt <= now) failures.delete(key);
+    }
+
+    const key = sourceKey(source);
+    let entry = failures.get(key);
+    if (!entry) {
+      while (failures.size >= maxSources) {
+        const oldestKey = failures.keys().next().value as string | undefined;
+        if (oldestKey === undefined) break;
+        failures.delete(oldestKey);
+      }
+      entry = { count: 0, resetAt: now + windowMs };
+      failures.set(key, entry);
+    }
+    entry.count += 1;
+    return {
+      limited: entry.count > failureLimit,
+      retryAfterSeconds: Math.max(1, Math.ceil((entry.resetAt - now) / 1_000)),
+    };
+  };
+
+  return { recordFailure, storedSources: () => failures.size };
 }
 
 export function createTelemetry(options: {
@@ -271,6 +316,7 @@ export function createTelemetryEndpoint(
   telemetry: Telemetry,
   credentials: { username?: string; password?: string },
 ): RequestHandler {
+  const failedAuthenticationLimiter = createFailedAuthenticationLimiter();
   return (request: Request, response: Response) => {
     response.set("Cache-Control", "no-store");
     response.set("X-Robots-Tag", "noindex, nofollow");
@@ -280,11 +326,15 @@ export function createTelemetryEndpoint(
       return;
     }
     const supplied = parseBasicAuthorization(request.get("authorization"));
-    if (
-      !supplied ||
-      !safeEqual(supplied.username, credentials.username) ||
-      !safeEqual(supplied.password, credentials.password)
-    ) {
+    const usernameMatches = safeEqual(supplied?.username ?? "", credentials.username);
+    const passwordMatches = safeEqual(supplied?.password ?? "", credentials.password);
+    if (!supplied || !usernameMatches || !passwordMatches) {
+      const failure = failedAuthenticationLimiter.recordFailure(request.ip);
+      if (failure.limited) {
+        response.set("Retry-After", String(failure.retryAfterSeconds));
+        response.status(429).json({ error: "too_many_authentication_attempts" });
+        return;
+      }
       response.set("WWW-Authenticate", 'Basic realm="x402-monitor", charset="UTF-8"');
       response.status(401).json({ error: "unauthorized" });
       return;

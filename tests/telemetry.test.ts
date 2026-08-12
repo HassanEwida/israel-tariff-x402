@@ -2,7 +2,7 @@ import type { RequestHandler } from "express";
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
-import { createTelemetry } from "../src/telemetry.js";
+import { createFailedAuthenticationLimiter, createTelemetry } from "../src/telemetry.js";
 
 function unpaid402(): RequestHandler {
   return (_request, response) => {
@@ -101,6 +101,56 @@ describe("private production telemetry", () => {
     const configured = createApp(undefined, telemetry, { username: "monitor", password: "correct" });
     expect((await request(configured).get("/internal/telemetry")).status).toBe(401);
     expect((await request(configured).get("/internal/telemetry").auth("monitor", "wrong")).status).toBe(401);
+  });
+
+  it("rate-limits only after ten failed authentication attempts per source", async () => {
+    const { app } = telemetryApp();
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      expect((await request(app).get("/internal/telemetry").auth("monitor", "wrong")).status).toBe(401);
+    }
+    const limited = await request(app).get("/internal/telemetry").auth("monitor", "wrong");
+    expect(limited.status).toBe(429);
+    expect(Number(limited.headers["retry-after"])).toBeGreaterThan(0);
+  });
+
+  it("does not rate-limit a successful collector request after failures", async () => {
+    const { app } = telemetryApp();
+    for (let attempt = 0; attempt < 11; attempt += 1) {
+      await request(app).get("/internal/telemetry").auth("monitor", "wrong");
+    }
+    expect((await request(app).get("/internal/telemetry").auth("monitor", "correct")).status).toBe(200);
+  });
+
+  it("isolates failed-authentication limits by trusted request source", async () => {
+    const { app } = telemetryApp();
+    for (let attempt = 0; attempt < 11; attempt += 1) {
+      await request(app)
+        .get("/internal/telemetry")
+        .set("X-Forwarded-For", "198.51.100.10")
+        .auth("monitor", "wrong");
+    }
+    const differentSource = await request(app)
+      .get("/internal/telemetry")
+      .set("X-Forwarded-For", "198.51.100.11")
+      .auth("monitor", "wrong");
+    expect(differentSource.status).toBe(401);
+  });
+
+  it("keeps failed-authentication source state bounded and expires windows", () => {
+    let now = 1_000;
+    const limiter = createFailedAuthenticationLimiter({
+      failureLimit: 1,
+      windowMs: 1_000,
+      maxSources: 2,
+      now: () => now,
+    });
+    expect(limiter.recordFailure("source-one").limited).toBe(false);
+    expect(limiter.recordFailure("source-one").limited).toBe(true);
+    limiter.recordFailure("source-two");
+    limiter.recordFailure("source-three");
+    expect(limiter.storedSources()).toBe(2);
+    now += 1_001;
+    expect(limiter.recordFailure("source-one").limited).toBe(false);
   });
 
   it("returns safe JSON with auth and privacy headers", async () => {
