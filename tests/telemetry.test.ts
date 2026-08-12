@@ -18,13 +18,44 @@ function telemetryApp(options: { eventLimit?: number; hashSecret?: string } = {}
 }
 
 describe("private production telemetry", () => {
-  it("excludes health and telemetry reads from tariff demand", async () => {
+  it("keeps health public and outside telemetry demand counters", async () => {
     const { app, telemetry } = telemetryApp();
+    const response = await request(app).get("/health");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ status: "ok" });
+    expect(response.headers["www-authenticate"]).toBeUndefined();
+    expect(telemetry.snapshot().counters).toMatchObject({
+      total_tariff_requests: 0,
+      status_402: 0,
+    });
+    expect(telemetry.snapshot().recent_events.map((event) => event.event)).toEqual([
+      "SERVICE_STARTED",
+    ]);
+  });
+
+  it("keeps telemetry authentication isolated from the public health route", async () => {
+    const { app } = telemetryApp();
+
+    expect((await request(app).get("/internal/telemetry")).status).toBe(401);
     expect((await request(app).get("/health")).status).toBe(200);
-    expect(
-      (await request(app).get("/internal/telemetry").auth("monitor", "correct")).status,
-    ).toBe(200);
-    expect(telemetry.snapshot().counters.total_tariff_requests).toBe(0);
+  });
+
+  it("preserves unpaid tariff behavior alongside the public health route", async () => {
+    const { app, telemetry } = telemetryApp();
+
+    const tariff = await request(app).get("/il/tariff/8517130000");
+    expect(tariff.status).toBe(402);
+    expect(tariff.headers["payment-required"]).toBe("safe-fixture");
+    expect(telemetry.snapshot().counters).toMatchObject({
+      total_tariff_requests: 1,
+      status_402: 1,
+    });
+    expect((await request(app).get("/health")).status).toBe(200);
+    expect(telemetry.snapshot().counters).toMatchObject({
+      total_tariff_requests: 1,
+      status_402: 1,
+    });
   });
 
   it("classifies 400, 404, and unpaid 402 responses", async () => {
