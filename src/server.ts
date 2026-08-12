@@ -1,21 +1,24 @@
 import { existsSync } from "node:fs";
 import { loadEnvFile } from "node:process";
 import { createApp } from "./app.js";
-import {
-  createPaymentSetup,
-  resolveX402Configuration,
-} from "./payment.js";
+import { createPaymentSetup, resolveX402Configuration } from "./payment.js";
+import { createTelemetry } from "./telemetry.js";
 
-if (existsSync(".env")) {
-  loadEnvFile(".env");
-}
+if (existsSync(".env")) loadEnvFile(".env");
 
 const PORT = Number(process.env.PORT ?? 8402);
 
 try {
   const x402Configuration = resolveX402Configuration(process.env.X402_ENVIRONMENT);
-  const payment = await createPaymentSetup(x402Configuration);
-  const app = createApp(payment.middleware);
+  const telemetry = createTelemetry({
+    hashSecret: process.env.TELEMETRY_HASH_SECRET,
+    network: x402Configuration.network,
+  });
+  const payment = await createPaymentSetup(x402Configuration, telemetry);
+  const app = createApp(payment.middleware, telemetry, {
+    username: process.env.MONITOR_USERNAME,
+    password: process.env.MONITOR_PASSWORD,
+  });
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server listening on 0.0.0.0:${PORT}`);

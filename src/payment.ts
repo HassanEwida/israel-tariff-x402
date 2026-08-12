@@ -2,6 +2,7 @@ import { createX402Server, type CdpX402ServerConfig } from "@coinbase/cdp-sdk/x4
 import { paymentMiddlewareFromHTTPServer } from "@x402/express";
 import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
 import type { RequestHandler } from "express";
+import { telemetryContextFromResponseLocals, type Telemetry } from "./telemetry.js";
 
 export const PAYMENT_NETWORKS = {
   development: "eip155:84532",
@@ -194,6 +195,7 @@ export type PaymentSetup = {
 
 export async function createPaymentSetup(
   configuration: X402Configuration,
+  telemetry?: Telemetry,
 ): Promise<PaymentSetup> {
   const missingVariables = REQUIRED_CDP_ENVIRONMENT_VARIABLES.filter(
     (name) => !process.env[name],
@@ -212,7 +214,6 @@ export async function createPaymentSetup(
     throw new Error("CDP did not return an EVM payment destination");
   }
 
-  const observedPayers = new Set<string>();
   x402Server.resourceServer.onAfterSettle(async ({ requirements, result, transportContext }) => {
     const httpContext = transportContext as
       | { request?: { path?: unknown; method?: unknown } }
@@ -220,31 +221,33 @@ export async function createPaymentSetup(
     const path = httpContext?.request?.path;
     const code = typeof path === "string" ? /^\/il\/tariff\/(\d{10})$/.exec(path)?.[1] : undefined;
     const payer = typeof result.payer === "string" ? result.payer : undefined;
-    const payerKey = payer?.toLowerCase();
-    const payerHistory = payerKey
-      ? observedPayers.has(payerKey)
-        ? "repeat"
-        : "new"
-      : "unavailable";
-
-    if (payerKey) {
-      observedPayers.add(payerKey);
-    }
-
-    console.log(
-      JSON.stringify({
-        event: "x402_payment_settled",
-        timestamp: new Date().toISOString(),
-        endpoint: "GET /il/tariff/:code",
-        code: code ?? null,
-        paid: true,
-        payer_address: payer ?? null,
-        payer_history: payerHistory,
-        network: result.network,
+    const adapter = httpContext?.request as
+      | { adapter?: { req?: { res?: { locals?: unknown } } } }
+      | undefined;
+    const requestContext = telemetryContextFromResponseLocals(adapter?.adapter?.req?.res?.locals);
+    if (telemetry) {
+      telemetry.recordSettlement({
+        ...(requestContext?.request_id ? { request_id: requestContext.request_id } : {}),
+        ...(code ? { tariff_code: code } : {}),
+        ...(typeof result.network === "string" ? { network: result.network } : {}),
         amount_atomic: requirements.amount,
-        transaction: result.transaction,
-      }),
-    );
+        ...(payer ? { payer } : {}),
+        ...(typeof result.transaction === "string" ? { transaction: result.transaction } : {}),
+      });
+    } else {
+      console.log(
+        JSON.stringify({
+          event: "X402_SETTLEMENT",
+          timestamp: new Date().toISOString(),
+          request_id: requestContext?.request_id ?? null,
+          tariff_code: code ?? null,
+          network: result.network,
+          amount_atomic: requirements.amount,
+          payer: payer ?? null,
+          transaction: result.transaction,
+        }),
+      );
+    }
   });
 
   return {

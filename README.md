@@ -26,10 +26,35 @@ CDP_WALLET_SECRET=
 X402_ENVIRONMENT=development
 PORT=8402
 NODE_ENV=development
+TELEMETRY_HASH_SECRET=
+MONITOR_USERNAME=
+MONITOR_PASSWORD=
 ```
 
 Secrets are read from the environment or local `.env` file and must never be
 committed. The `.env` file is ignored by Git.
+
+## Private experiment telemetry
+
+`GET /internal/telemetry` exposes a bounded, process-lifetime snapshot for the
+private collector. It is protected with HTTP Basic authentication and fails closed
+when `MONITOR_USERNAME` or `MONITOR_PASSWORD` is missing. In production it must be
+accessed only through Render's managed HTTPS endpoint. Responses are JSON, are not
+cacheable, and request search-engine exclusion.
+
+Telemetry contains allowlisted operational fields only. It never retains raw IP
+addresses, credentials, cookies, request bodies, or payment-signature contents.
+When `TELEMETRY_HASH_SECRET` is configured, Express derives a short HMAC source ID
+from `request.ip`. The application trusts one proxy hop for Render, rather than
+blindly using arbitrary forwarded-header values. This assumes Render supplies the
+immediate proxy address information correctly; omit the hash secret if that
+assumption cannot be maintained. A source ID represents an approximate network
+source and is not necessarily a unique person or agent.
+
+The snapshot is intentionally reset whenever the process restarts and holds only the
+latest 200 safe events. The separate local monitor persists observed history. A 200
+response is not treated as proof of payment: settlement telemetry is emitted only by
+the existing x402 `onAfterSettle` callback.
 
 ## Run and verify
 

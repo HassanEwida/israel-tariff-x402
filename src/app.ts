@@ -1,5 +1,6 @@
 import express, { type RequestHandler } from "express";
 import { findTariff, normalizeTariffCode } from "./tariff.js";
+import { createTelemetryEndpoint, type Telemetry } from "./telemetry.js";
 
 const TARIFF_ROUTE = "/il/tariff/:code";
 
@@ -22,26 +23,26 @@ const validateTariffRequest: RequestHandler = (request, response, next) => {
   }
 
   response.locals.tariffCode = code;
+  const telemetryContext = response.locals.telemetry as { tariff_code?: string } | undefined;
+  if (telemetryContext) telemetryContext.tariff_code = code;
   next();
 };
 
 const tariffHandler: RequestHandler = (_request, response) => {
   const tariff = findTariff(response.locals.tariffCode as string);
-
-  // The preflight middleware guarantees this entry exists before payment.
   if (!tariff) {
     response.status(500).json({ error: "tariff_lookup_failed" });
     return;
   }
-
   response.json(tariff);
 };
 
-export function createApp(paymentMiddleware?: RequestHandler) {
+export function createApp(
+  paymentMiddleware?: RequestHandler,
+  telemetry?: Telemetry,
+  monitorCredentials: { username?: string; password?: string } = {},
+) {
   const app = express();
-
-  // Render terminates HTTPS at its proxy. Trust the first proxy hop so x402
-  // advertises the original HTTPS resource URL in payment requirements.
   app.set("trust proxy", 1);
   app.disable("x-powered-by");
 
@@ -49,15 +50,19 @@ export function createApp(paymentMiddleware?: RequestHandler) {
     response.json({ status: "ok" });
   });
 
-  if (paymentMiddleware) {
-    app.get(TARIFF_ROUTE, validateTariffRequest, paymentMiddleware, tariffHandler);
-  } else {
-    app.get(TARIFF_ROUTE, validateTariffRequest, tariffHandler);
+  if (telemetry) {
+    app.get("/internal/telemetry", createTelemetryEndpoint(telemetry, monitorCredentials));
   }
 
+  const routeHandlers: RequestHandler[] = [
+    ...(telemetry ? [telemetry.requestMiddleware] : []),
+    validateTariffRequest,
+    ...(telemetry ? [telemetry.paymentStageMiddleware] : []),
+    ...(paymentMiddleware ? [paymentMiddleware] : []),
+    tariffHandler,
+  ];
+  app.get(TARIFF_ROUTE, ...routeHandlers);
   return app;
 }
 
-// Unpaid app instance for business-logic tests. The production entry point
-// creates a payment-enabled instance after x402 initialization succeeds.
 export const app = createApp();
